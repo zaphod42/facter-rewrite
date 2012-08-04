@@ -12,29 +12,40 @@ module Facter
     "application/facter-index+json" => :index
   }
 
+  module HasFacts
+    def include?(name)
+      names.include?(name)
+    end
+
+    def each_fact(librarian, &block)
+      names.each { |name| yield(name, read(librarian, name)) }
+    end
+  end
+
   class Book
+    include HasFacts
+
+    attr_reader :names
+
     def self.parse(output)
       Book.new(JSON.parse(output))
     end
 
     def initialize(facts)
       @facts = facts
+      @names = facts.keys
     end
 
     def read(librarian, name)
       @facts[name]
     end
-
-    def include?(name)
-      @facts.include?(name)
-    end
-
-    def each_fact(librarian, &block)
-      @facts.each { |name, value| yield(name, value) }
-    end
   end
 
   class Index
+    include HasFacts
+
+    attr_reader :names
+
     def self.parse(path, output)
       Index.new(path, JSON.parse(output))
     end
@@ -42,19 +53,12 @@ module Facter
     def initialize(path, index)
       @path = path
       @index = index
-    end
-
-    def include?(name)
-      @index["provides"].include?(name)
+      @names = index["provides"]
     end
 
     def read(librarian, name)
       dependent_values = Hash[@index["depends"].collect { |d| [d, librarian.lookup(d)] }]
       librarian.examine(name, @path, dependent_values)
-    end
-
-    def each_fact(librarian, &block)
-      @index["provides"].each { |name| yield(name, read(librarian, name)) }
     end
   end
 
@@ -105,15 +109,20 @@ module Facter
   class Librarian
     def initialize(library)
       @library = library
+      @memory = {}
     end
 
     def lookup(name)
-      book = @library.find { |book| book.include?(name) }
-      if book.nil?
-        nil
-      else
-        book.read(self, name)
+      if not @memory[name]
+        book = @library.find { |book| book.include?(name) }
+        @memory[name] = if book.nil?
+          nil
+        else
+          book.read(self, name)
+        end
       end
+
+      @memory[name]
     end
 
     def each_fact(&block)
