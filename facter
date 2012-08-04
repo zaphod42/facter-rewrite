@@ -1,0 +1,164 @@
+#!/usr/bin/env ruby
+
+require 'json'
+require 'pathname'
+require 'open3'
+
+module Facter
+  PATH = Pathname.new('facts')
+
+  TYPES = {
+    "application/facter-book+json" => :book,
+    "application/facter-index+json" => :index
+  }
+
+  class Book
+    def self.parse(output)
+      Book.new(JSON.parse(output))
+    end
+
+    def initialize(facts)
+      @facts = facts
+    end
+
+    def read(librarian, name)
+      @facts[name]
+    end
+
+    def include?(name)
+      @facts.include?(name)
+    end
+
+    def each_fact(librarian, &block)
+      @facts.each { |name, value| yield(name, value) }
+    end
+  end
+
+  class Index
+    def self.parse(path, output)
+      Index.new(path, JSON.parse(output))
+    end
+
+    def initialize(path, index)
+      @path = path
+      @index = index
+    end
+
+    def include?(name)
+      @index["provides"].include?(name)
+    end
+
+    def read(librarian, name)
+      dependent_values = Hash[@index["depends"].collect { |d| [d, librarian.lookup(d)] }]
+      librarian.examine(name, @path, dependent_values)
+    end
+
+    def each_fact(librarian, &block)
+      @index["provides"].each { |name| yield(name, read(librarian, name)) }
+    end
+  end
+
+  class Library
+    include Enumerable
+
+    def initialize(path)
+      @path = path
+    end
+
+    def each(&block)
+      @books ||= @path.children.collect do |path| 
+        Thread.new do
+          if path.file? and path.executable?
+            checkout(path, {})
+          end
+        end
+      end.collect(&:value).compact
+
+      @books.each(&block)
+    end
+
+    def checkout(path, arguments)
+      (type, content) = examine(path, arguments)
+      case type
+      when :book
+        Book.parse(content)
+      when :index
+        Index.parse(path, content)
+      end
+    end
+
+  private
+
+    def examine(file, arguments)
+      dependent_value_options = arguments.flat_map { |d, v| ["--#{d}", v] }
+      command = [file.to_s] + dependent_value_options
+      data, process = Open3.capture2(*command)
+
+      end_of_first_line = data.index("\n")
+      first_line = data[0..end_of_first_line - 1]
+      payload = data[end_of_first_line + 1 .. -1]
+
+      [TYPES[first_line], payload]
+    end
+  end
+
+  class Librarian
+    def initialize(library)
+      @library = library
+    end
+
+    def lookup(name)
+      book = @library.find { |book| book.include?(name) }
+      if book.nil?
+        nil
+      else
+        book.read(self, name)
+      end
+    end
+
+    def each_fact(&block)
+      @library.each do |book|
+        book.each_fact(self, &block)
+      end
+    end
+
+    def examine(name, in_path, arguments)
+      @library.checkout(in_path, arguments).read(self, name)
+    end
+  end
+
+  class StructuredText
+    def initialize
+      @data = {}
+    end
+
+    def []=(name, value)
+      @data[name] = value
+    end
+
+    def write_to(stream)
+      if @data.length == 1
+        stream.puts(@data.values.first)
+      else
+        @data.keys.sort.each do |name|
+          stream.puts("#{name}=#{@data[name]}")
+        end
+      end
+    end
+  end
+end
+
+library = Facter::Librarian.new(Facter::Library.new(Facter::PATH))
+
+output = Facter::StructuredText.new
+if ARGV.empty?
+  library.each_fact do |name, value|
+    output[name] = value
+  end
+else
+  ARGV.each do |name|
+    output[name] = library.lookup(name)
+  end
+end
+
+output.write_to(STDOUT)

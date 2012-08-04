@@ -1,0 +1,15 @@
+#!/usr/bin/env ruby
+
+require 'json'
+
+mounts = {}
+%x{mount}.each_line do |line|
+  if line =~ /(.*) on (.*) \(/
+    mounts[$1] = $2
+  end
+end
+
+puts <<EOM
+application/facter-book+json
+#{JSON.unparse(mounts)}
+EOM

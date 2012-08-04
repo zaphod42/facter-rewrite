@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "application/facter-book+json\n{ \"time\": \"$(date)\", \"kernel\": \"$(uname -s)\" }"

@@ -1,0 +1,15 @@
+#!/usr/bin/env perl
+
+if(!@ARGV) {
+  print <<EOM;
+application/facter-index+json
+{ "depends": ["operatingsystem"],
+  "provides": ["modified"] }
+EOM
+  exit(0);
+}
+
+print <<EOM
+application/facter-book+json
+{ "modified": "$ARGV[1] changed" }
+EOM

@@ -1,0 +1,21 @@
+Scan directories for executable files. Execute each file with no options. Each
+file prints to stdout either a fact book or an index
+
+Fact book:
+
+  application/facter-book+json
+  {
+    "fact name": { "some": ["value"] },
+    "second fact": 2
+  }
+
+Index:
+
+  application/facter-index+json
+  {
+    depends: ["different fact"]
+    provides: ["fact name", "another fact"]
+  }
+
+If the program printed an index then it can be executed again with options of
+the values of the facts that book depends on.

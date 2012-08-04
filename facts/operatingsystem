@@ -1,0 +1,28 @@
+#!/bin/sh
+
+if [ -z "$1" ]; then
+  echo "application/facter-index+json\n{ \"depends\": [\"kernel\"], \"provides\": [\"operatingsystem\"] }"
+else
+  for i in $*; do
+    case $i in
+      --kernel)
+        OPT="KERNEL"
+        ;;
+      *)
+        eval "$OPT=$i"
+      ;;
+    esac
+  done
+
+  if [ "Linux" = "$KERNEL" ]; then
+    if [ -e /etc/debian_version ]; then
+      os="Debian"
+    elif [ -e /etc/centos-release ]; then
+      os="Centos"
+    fi
+  else
+    os=$KERNEL
+  fi
+
+  echo "application/facter-book+json\n{ \"operatingsystem\": \"${os}\" }"
+fi
