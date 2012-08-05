@@ -7,9 +7,17 @@ require 'open3'
 module Facter
   PATH = Pathname.new('facts')
 
+  JSON_PARSER = ->(content) { JSON.parse(content) }
+
   TYPES = {
-    "application/facter-book+json" => :book,
-    "application/facter-index+json" => :index
+    "application/facter-book+json" => {
+      :type => :book,
+      :parser => JSON_PARSER
+    },
+    "application/facter-index+json" => {
+      :type => :index,
+      :parser => JSON_PARSER
+    }
   }
 
   module HasFacts
@@ -27,10 +35,6 @@ module Facter
 
     attr_reader :names
 
-    def self.parse(output)
-      Book.new(JSON.parse(output))
-    end
-
     def initialize(facts)
       @facts = facts
       @names = facts.keys
@@ -45,10 +49,6 @@ module Facter
     include HasFacts
 
     attr_reader :names
-
-    def self.parse(path, output)
-      Index.new(path, JSON.parse(output))
-    end
 
     def initialize(path, index)
       @path = path
@@ -85,9 +85,9 @@ module Facter
       (type, content) = examine(path, arguments)
       case type
       when :book
-        Book.parse(content)
+        Book.new(content)
       when :index
-        Index.parse(path, content)
+        Index.new(path, content)
       end
     end
 
@@ -109,7 +109,9 @@ module Facter
       first_line = data[0..end_of_first_line - 1]
       payload = data[end_of_first_line + 1 .. -1]
 
-      [TYPES[first_line], payload]
+      type = TYPES[first_line]
+
+      [type[:type], type[:parser].call(payload)]
     end
 
     def scribe(value)
