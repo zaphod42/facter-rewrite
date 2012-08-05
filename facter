@@ -94,15 +94,31 @@ module Facter
   private
 
     def examine(file, arguments)
-      dependent_value_options = arguments.flat_map { |d, v| ["--#{d}", v] }
+      interpret(query(file, arguments))
+    end
+
+    def query(file, arguments)
+      dependent_value_options = arguments.flat_map { |d, v| ["--#{d}", scribe(v)] }
       command = [file.to_s] + dependent_value_options
       data, process = Open3.capture2(*command)
+      data
+    end
 
+    def interpret(data)
       end_of_first_line = data.index("\n")
       first_line = data[0..end_of_first_line - 1]
       payload = data[end_of_first_line + 1 .. -1]
 
       [TYPES[first_line], payload]
+    end
+
+    def scribe(value)
+      case value
+      when Hash, Array
+        JSON.unparse(value)
+      else
+        value
+      end
     end
   end
 

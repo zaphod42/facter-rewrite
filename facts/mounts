@@ -4,12 +4,15 @@ require 'json'
 
 mounts = {}
 %x{mount}.each_line do |line|
-  if line =~ /(.*) on (.*) \(/
-    mounts[$1] = $2
+  if line =~ /(.*) on (.*) \(([^)]*)/
+    mounts[$1] = {
+      "device" => $2,
+      "options" => $3.split(/,\s*/)
+    }
   end
 end
 
 puts <<EOM
 application/facter-book+json
-#{JSON.unparse(mounts)}
+#{JSON.unparse({ "mounts" => mounts })}
 EOM

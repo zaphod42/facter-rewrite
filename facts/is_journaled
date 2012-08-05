@@ -1,0 +1,16 @@
+#!/usr/bin/env ruby
+
+require 'json'
+
+if ARGV.empty?
+  puts "application/facter-index+json"
+  puts JSON.unparse({ "depends" => ["mounts"], "provides" => ["is_journaled"] })
+else
+  mounts = JSON.parse(ARGV[ARGV.index('--mounts') + 1])
+  puts "application/facter-book+json"
+  puts JSON.unparse({
+    :is_journaled => mounts.inject({}) do |acc, mount|
+      acc.merge({ mount[0] => mount[1]["options"].include?("journaled") })
+    end
+  })
+end
