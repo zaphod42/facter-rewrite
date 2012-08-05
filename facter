@@ -7,7 +7,7 @@ require 'open3'
 module Facter
   PATH = Pathname.new('facts')
 
-  JSON_PARSER = ->(content) { JSON.parse(content) }
+  JSON_PARSER = JSON.method(:parse)
 
   TYPES = {
     "application/facter-book+json" => {
