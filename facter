@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 require 'json'
+require 'yaml'
 require 'pathname'
 require 'open3'
 
@@ -9,7 +10,9 @@ module Facter
 
   TYPES = {
     "application/facter-book+json" => lambda { |path, data| Book.new(JSON.parse(data)) },
-    "application/facter-index+json" => lambda { |path, data| Index.new(path, JSON.parse(data)) }
+    "application/facter-index+json" => lambda { |path, data| Index.new(path, JSON.parse(data)) },
+    "application/facter-book+yaml" => lambda { |path, data| Book.new(YAML.load(data)) },
+    "application/facter-index+yaml" => lambda { |path, data| Index.new(path, YAML.load(data)) },
   }
 
   module HasFacts
