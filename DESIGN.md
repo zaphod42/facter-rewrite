@@ -25,17 +25,46 @@ Examples
 
 ## Fact book
 
+Execute:
+````
+example
+````
 
-  application/facter-book+json
-  {
-    "fact name": { "some": ["value"] },
-    "second fact": 2
-  }
+STDOUT:
+````
+application/facter-book+json
+{
+  "fact name": { "some": ["value"] },
+  "second fact": 2
+}
+````
 
 ## Index:
 
-  application/facter-index+json
-  {
-    depends: ["different fact"]
-    provides: ["fact name", "another fact"]
-  }
+Execute:
+````
+example-index
+````
+
+STDOUT:
+````
+application/facter-index+json
+{
+  depends: ["different fact"]
+  provides: ["fact name", "another fact"]
+}
+````
+
+Execute:
+````
+example-index "--different fact" "value"
+````
+
+STDOUT:
+````
+application/facter-book+json
+{
+  "fact name": { "some": ["value"] },
+  "another fact": 2
+}
+````
