@@ -1,0 +1,3 @@
+#!/bin/sh
+
+echo "application/facter-book+yaml\n$(facter --yaml)"
