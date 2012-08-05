@@ -7,26 +7,14 @@ require 'open3'
 module Facter
   PATH = Pathname.new('facts')
 
-  JSON_PARSER = JSON.method(:parse)
-
   TYPES = {
-    "application/facter-book+json" => {
-      :type => :book,
-      :parser => JSON_PARSER
-    },
-    "application/facter-index+json" => {
-      :type => :index,
-      :parser => JSON_PARSER
-    }
+    "application/facter-book+json" => lambda { |path, data| Book.new(JSON.parse(data)) },
+    "application/facter-index+json" => lambda { |path, data| Index.new(path, JSON.parse(data)) }
   }
 
   class Volume
     def initialize(command)
       @command = command
-    end
-
-    def path
-      @command[0]
     end
 
     def start
@@ -41,7 +29,16 @@ module Facter
       output = @output.read
       @output.close
       @pid.value
-      output
+      interpret(output)
+    end
+
+  private
+
+    def interpret(data)
+      first_line = data.slice!(0, data.index("\n"))
+      first_line.chomp!
+
+      TYPES[first_line].call(@command[0], data)
     end
   end
 
@@ -97,38 +94,25 @@ module Facter
     def each(&block)
       @books ||= @path.children.collect do |path| 
         query(path, {})
-      end.compact.collect(&method(:interpret))
+      end.compact.collect(&:value)
 
       @books.each(&block)
     end
 
     def checkout(path, arguments)
-      interpret(query(path, arguments))
+      book = query(path, arguments).value
+      @books ||= []
+      @books << book
+      book
     end
 
   private
 
     def query(file, arguments)
-      dependent_value_options = arguments.flat_map { |d, v| ["--#{d}", scribe(v)] }
-      command = [file.to_s] + dependent_value_options
-      Volume.new(command).start
-    end
-
-    def interpret(volume)
-      data = volume.value
-      end_of_first_line = data.index("\n")
-      first_line = data[0..end_of_first_line - 1]
-      payload = data[end_of_first_line + 1 .. -1]
-
-      type = TYPES[first_line]
-      content = type[:parser].call(payload)
-
-      case type[:type]
-      when :book
-        Book.new(content)
-      when :index
-        Index.new(volume.path, content)
+      command = arguments.inject([file.to_s]) do |options, entry|
+        options.push("--#{entry[0]}", scribe(entry[1]))
       end
+      Volume.new(command).start
     end
 
     def scribe(value)
