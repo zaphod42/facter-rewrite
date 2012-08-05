@@ -20,6 +20,31 @@ module Facter
     }
   }
 
+  class Volume
+    def initialize(command)
+      @command = command
+    end
+
+    def path
+      @command[0]
+    end
+
+    def start
+      input, @output, @pid = Open3.popen2(*@command)
+      input.close
+      self
+    rescue
+      nil
+    end
+
+    def value
+      output = @output.read
+      @output.close
+      @pid.value
+      output
+    end
+  end
+
   module HasFacts
     def include?(name)
       names.include?(name)
@@ -71,47 +96,39 @@ module Facter
 
     def each(&block)
       @books ||= @path.children.collect do |path| 
-        Thread.new do
-          if path.file? and path.executable?
-            checkout(path, {})
-          end
-        end
-      end.collect(&:value).compact
+        query(path, {})
+      end.compact.collect(&method(:interpret))
 
       @books.each(&block)
     end
 
     def checkout(path, arguments)
-      (type, content) = examine(path, arguments)
-      case type
-      when :book
-        Book.new(content)
-      when :index
-        Index.new(path, content)
-      end
+      interpret(query(path, arguments))
     end
 
   private
 
-    def examine(file, arguments)
-      interpret(query(file, arguments))
-    end
-
     def query(file, arguments)
       dependent_value_options = arguments.flat_map { |d, v| ["--#{d}", scribe(v)] }
       command = [file.to_s] + dependent_value_options
-      data, process = Open3.capture2(*command)
-      data
+      Volume.new(command).start
     end
 
-    def interpret(data)
+    def interpret(volume)
+      data = volume.value
       end_of_first_line = data.index("\n")
       first_line = data[0..end_of_first_line - 1]
       payload = data[end_of_first_line + 1 .. -1]
 
       type = TYPES[first_line]
+      content = type[:parser].call(payload)
 
-      [type[:type], type[:parser].call(payload)]
+      case type[:type]
+      when :book
+        Book.new(content)
+      when :index
+        Index.new(volume.path, content)
+      end
     end
 
     def scribe(value)
