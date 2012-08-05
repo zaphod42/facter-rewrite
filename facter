@@ -172,7 +172,7 @@ module Facter
         stream.puts(@data.values.first)
       else
         @data.keys.sort.each do |name|
-          stream.puts("#{name}=#{@data[name]}")
+          stream.puts("#{name} => #{@data[name]}")
         end
       end
     end
